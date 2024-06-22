@@ -21,9 +21,10 @@ export const usersSlices = createApi({
       }),
     }),
     updatedUser: builder.mutation({
-      query: (userId) => ({
-        url: `users/${userId}`,
-        method: 'UPDATE',
+      query: (data) => ({
+        url: `users/${data.userId}`,
+        method: 'PUT',
+        body: {user: data.user, organizationFounded: data.organizationFounded, organizationEmployed: data.organizationEmployed}
       }),
     }),
     addUser: builder.mutation({

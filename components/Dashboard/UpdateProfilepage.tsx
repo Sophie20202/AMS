@@ -386,16 +386,10 @@ const UpdateProfile: React.FC = () => {
   const [selectedDistrict, setSelectedDistrict] = useState<any | null>(null);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [onLoading, setIsLoading] = useState<boolean>(false);
   // const [data, setData] = useState<User>()
 
-  const { data } = useGetOneUserQuery(id);
-
-  // useEffect(() => {
-  //   if (UserData) { setData(UserData) }
-  // }, [UserData])
-
-  console.log(data)
+  const { data, isLoading } = useGetOneUserQuery(id);
 
   const [updateUser] = useUpdatedUserMutation(); // Assuming you have an update mutation
 
@@ -405,6 +399,8 @@ const UpdateProfile: React.FC = () => {
   const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
     skip: !selectedDistrict,
   });
+
+
 
   useEffect(() => {
     if (GenderData) {
@@ -472,12 +468,17 @@ const UpdateProfile: React.FC = () => {
     },
   });
 
+  if (isLoading) return <Loading />;
+
   const handleSubmit = async () => {
     setIsLoading(true);
     const values: any = formik.values;
     try {
       const res = await updateUser({
+        userId: id,
+
         user: {
+         
           firstName: values.firstName,
           middleName: values.middleName,
           lastName: values.lastName,
@@ -494,6 +495,7 @@ const UpdateProfile: React.FC = () => {
           positionInEmployed: values?.companyPosition,
         },
         organizationFounded: {
+          id: data?.organizationFoundedId,
           name: values?.initiativeName,
           workingSector: values?.mainSector,
           districtId: values.foundedDistrictName.name,
@@ -501,6 +503,7 @@ const UpdateProfile: React.FC = () => {
           website: values?.foundedWebsite,
         },
         organizationEmployed: {
+          id: data?.organizationEmployedIId,
           name: values?.companyName,
           workingSector: values?.companySector,
           districtId: values?.companyDistrictName.name,
@@ -564,7 +567,7 @@ const UpdateProfile: React.FC = () => {
     },
   ];
 
-  if (isLoading) {
+  if (onLoading) {
     return <Loading />;
   }
 
