@@ -1,13 +1,48 @@
-import React, { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import Button from "./Button";
-import { useImportUsersMutation } from "@/lib/features/userSlice";
-import { Toast } from "primereact/toast";
-import { ProgressSpinner } from "primereact/progressspinner";
+"use client";
 
-const acceptedCSVTypes = [
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-];
+import React, { useEffect, useState } from "react";
+import { useImportUsersMutation } from "@/lib/features/userSlice";
+import Loading from "@/app/loading";
+import {
+  Alert,
+  AppBar,
+  Box,
+  Button,
+  Dialog,
+  DialogContent,
+  IconButton,
+  Slide,
+  styled,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import { TransitionProps } from "@mui/material/transitions";
+import CloseIcon from "@mui/icons-material/Close";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import Link from "next/link";
+import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import * as XLSX from "xlsx";
+
+const VisuallyHiddenInput = styled("input")({
+  clip: "rect(0 0 0 0)",
+  clipPath: "inset(50%)",
+  height: 1,
+  overflow: "hidden",
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  whiteSpace: "nowrap",
+  width: 1,
+});
+
+const Transition = React.forwardRef(function Transition(
+  props: TransitionProps & {
+    children: React.ReactElement<unknown>;
+  },
+  ref: React.Ref<unknown>
+) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
 const FullScreenModal = ({
   isOpen,
@@ -19,144 +54,427 @@ const FullScreenModal = ({
   refetch: any;
 }) => {
   const [importUsers] = useImportUsersMutation();
-  const toast: any = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  const show = () => {
-    toast.current.show({
-      severity: "success",
-      summary: "Success",
-      detail: "Users added successfully",
-    });
-  };
+  const [success, setSuccess] = useState("");
+  const [info, setInfo] = useState("");
+  const [error, setError] = useState("");
+  const [rows, setRows] = useState([]);
+  const [rowSelectionModel, setRowSelectionModel] = useState<string[]>([]);
 
   const toggleModal = () => {
     setIsOpen(!isOpen);
   };
 
-  const handleKeyDown = (event: any) => {
-    if (event.key === "Escape" || event.key === "Esc" || event.keyCode === 27) {
-      if (isOpen) {
-        toggleModal();
-      }
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) {
-      document.body.classList.add("modal-active");
-      document.addEventListener("keydown", handleKeyDown);
-    } else {
-      document.body.classList.remove("modal-active");
-      document.removeEventListener("keydown", handleKeyDown);
+    if (success || error || info) {
+      setInterval(() => {
+        setSuccess("");
+        setError("");
+        setInfo("");
+      }, 10000);
     }
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
+  }, [success, error, info]);
 
   const handleFileUpload = async (event: any) => {
     setIsLoading(true);
-    const file = event.target.files[0];
+    const selectedRows = rows.filter((row: any) =>
+      rowSelectionModel.includes(row.id)
+    );
 
-    if (!file) {
-      alert("Please select a file");
+    if (selectedRows.length === 0) {
+      setInfo("Please select at least one row.");
+      setIsLoading(false);
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
+    const payload = {
+      selectedData: selectedRows,
+    };
 
     try {
-      const res = await importUsers(formData).unwrap();
+      const res = await importUsers(payload).unwrap();
       console.log(res);
       if (res.errors.length > 0) {
         res.errors.forEach((err: any) => {
-          toast.current.show({
-            severity: "error",
-            summary: "Error",
-            detail: `Row: ${err?.row["Email Address"]}. ${err?.message}`,
-          });
+          setError(err?.message);
         });
       }
 
       if (res.processedUsers.length > 0) {
-        toast.current.show({
-          severity: "success",
-          summary: "Success",
-          detail: `${res.processedUsers.length} rows has been processed!`,
-        });
+        setSuccess("Members added successfully!");
       }
-    } catch (error) {
+
+      if (res?.failedUsers.length > 0) {
+        const failed = res?.failedUsers.map((u: any) => u?.email).join(", ");
+        setInfo(`Failed to add users with email: ${failed}`);
+      }
+    } catch (error: any) {
       console.log(error);
+      setError(error);
     } finally {
       refetch();
-      setIsOpen(!isOpen);
       setIsLoading(false);
     }
   };
 
+  const handlePreview = async (event: any) => {
+    setError("");
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        if (!data) throw new Error("File data could not be read.");
+
+        const workbook = XLSX.read(data, { type: "binary" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const excelData: any[] = XLSX.utils.sheet_to_json(sheet);
+
+        const mappedRows: any = excelData.map((row, index) => ({
+          id: index + 1,
+          firstName: row["First name"] || "",
+          middleName: row["Middle Name"] || "",
+          lastName: row["Second name"] || "",
+          email: row["Email Address"] || "",
+          phoneNumber: row["Your personal Phone number"] || "",
+          whatsappNumber: row["Your WhatsApp number"] || "",
+          residentCountry: row["Country of Residence"] || "",
+          state: row["State (If not in Rwanda)"] || "",
+          residentDistrict: row["District of Residence (If in Rwanda)"] || "",
+          residentSector: row["Sector of Residence (If in Rwanda)"] || "",
+          nearestLandmark:
+            row[
+              "Nearest Landmark (School, Church, Mosque, Hotel, or any other common known mark)"
+            ] || "",
+          fieldOfStudy: row["Field of Study"],
+          cohort: row["Cohort"] || "",
+          track: row["Track"] || "",
+          initiativeName:
+            row[
+              "The name of your Initiative (organization you Founded or co-founded)  if Available"
+            ] || "",
+          initiativeSector:
+            row[
+              "Main Sector of intervention (Eg: Finance, Education, Agribusiness, Etc)"
+            ] || "",
+          initiativePosition:
+            row[
+              "Position with that Organizaton  (Eg: Founder & CEO, Co-Founder &CEO) or other Position"
+            ] || "",
+          initiativeAddress:
+            row["Country of the initiative (District/Sector)"] || "",
+          initiativeWebsite:
+            row["Website or any online presence of your initiative"] || "",
+          employerName:
+            row["Organization Name (If employed by another organization)"] ||
+            "",
+          employerPosition:
+            row["Position in the organization employing you"] || "",
+          employerWebsite:
+            row["Website of an Organization that Employs you (If available)"] ||
+            "",
+          employerAddress: row["Organization Address (Country)"] || "",
+          gender: row["Gender"] || "",
+          linkedin:
+            row["LinkedIn Profile Link (https://linkedin.com/in/...)"] || "",
+          instagram:
+            row["Instagram Profile Link (https://instagram.com/...)"] || "",
+          facebook:
+            row["Facebook Profile Link (https://facebook.com/...)"] || "",
+          twitter: row["X (Twitter) Profile Link (https://x.com/...)"] || "",
+          profileImage: row["Profile Picture"],
+        }));
+
+        setRows(mappedRows);
+      } catch (err) {
+        console.error("Error parsing file:", err);
+        setError("Failed to parse the file. Please check the format.");
+      }
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  const columns: GridColDef[] = [
+    {
+      field: "firstName",
+      headerName: "First Name",
+      width: 150,
+      editable: true,
+    },
+    {
+      field: "middleName",
+      headerName: "Middle Name",
+      width: 150,
+      editable: true,
+    },
+    {
+      field: "lastName",
+      headerName: "Second Name",
+      width: 150,
+      editable: true,
+    },
+    { field: "email", headerName: "Email Address", width: 200, editable: true },
+    {
+      field: "phoneNumber",
+      headerName: "Your Personal Phone Number",
+      width: 180,
+      editable: true,
+    },
+    {
+      field: "whatsappNumber",
+      headerName: "Your WhatsApp Number",
+      width: 180,
+      editable: true,
+    },
+    {
+      field: "residentCountry",
+      headerName: "Country of Residence",
+      width: 200,
+      editable: true,
+    },
+    {
+      field: "state",
+      headerName: "State (If not in Rwanda)",
+      width: 200,
+      editable: true,
+    },
+    {
+      field: "residentDistrict",
+      headerName: "District of Residence (If in Rwanda)",
+      width: 230,
+      editable: true,
+    },
+    {
+      field: "residentSector",
+      headerName: "Sector of Residence (If in Rwanda)",
+      width: 230,
+      editable: true,
+    },
+    {
+      field: "nearestLandmark",
+      headerName:
+        "Nearest Landmark (School, Church, Mosque, Hotel, or any other common known mark)",
+      width: 300,
+      editable: true,
+    },
+    {
+      field: "fieldOfStudy",
+      headerName: "Field of Study",
+      width: 300,
+      editable: true,
+    },
+    { field: "cohort", headerName: "Cohort", width: 100, editable: true },
+    { field: "track", headerName: "Track", width: 150, editable: true },
+    {
+      field: "initiativeName",
+      headerName: "Name of Your Initiative",
+      width: 250,
+      editable: true,
+    },
+    {
+      field: "initiativeSector",
+      headerName: "Main Sector of Intervention",
+      width: 200,
+      editable: true,
+    },
+    {
+      field: "initiativePosition",
+      headerName: "Position with Initiative",
+      width: 250,
+      editable: true,
+    },
+    {
+      field: "initiativeAddress",
+      headerName: "Country of the Initiative (District/Sector)",
+      width: 250,
+      editable: true,
+    },
+    {
+      field: "initiativeWebsite",
+      headerName: "Website/Online Presence of Initiative",
+      width: 250,
+      editable: true,
+    },
+    {
+      field: "employerName",
+      headerName: "Organization Name (If employed by another organization)",
+      width: 300,
+      editable: true,
+    },
+    {
+      field: "employerPosition",
+      headerName: "Position in Employing Organization",
+      width: 250,
+      editable: true,
+    },
+    {
+      field: "employerWebsite",
+      headerName: "Website of Employing Organization (If available)",
+      width: 250,
+      editable: true,
+    },
+    {
+      field: "employerAddress",
+      headerName: "Organization Address (Country)",
+      width: 200,
+      editable: true,
+    },
+    { field: "gender", headerName: "Gender", width: 130, editable: true },
+    {
+      field: "linkedin",
+      headerName: "LinkedIn Profile Link",
+      width: 300,
+      editable: true,
+    },
+    {
+      field: "instagram",
+      headerName: "Instagram Profile Link",
+      width: 300,
+      editable: true,
+    },
+    {
+      field: "facebook",
+      headerName: "Facebook Profile Link",
+      width: 300,
+      editable: true,
+    },
+    {
+      field: "twitter",
+      headerName: "X (Twitter) Profile Link",
+      width: 300,
+      editable: true,
+    },
+    {
+      field: "profileImage",
+      headerName: "Profile Picture",
+      width: 400,
+      editable: true,
+    },
+  ];
+
   return (
-    <div>
-      <Toast ref={toast} />
-      {isOpen &&
-        createPortal(
-          <div className="modal fixed w-full h-full top-0 left-0 flex items-center justify-center">
-            <div
-              className="modal-overlay absolute w-full h-full bg-white opacity-95"
-              onClick={toggleModal}
-            ></div>
-
-            <div className="modal-container fixed w-full h-full z-10 overflow-y-auto">
-              <div
-                className="modal-close absolute top-0 right-0 cursor-pointer flex flex-col items-center mt-4 mr-4 text-black text-sm z-50"
-                onClick={toggleModal}
-              >
-                <svg
-                  className="fill-current text-black"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 18 18"
-                >
-                  <path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path>
-                </svg>
-                (Esc)
-              </div>
-
-              <div className="modal-content container mx-auto h-auto text-left p-4">
-                <div className="flex justify-between items-center pb-2">
-                  <p className="text-2xl font-bold text-mainBlue">
-                    Upload Users
-                  </p>
-                </div>
-                <p className="text-xs">Use Excel file</p>
-              </div>
-              <div className=" border border-gray-200 rounded-md">
-                <div className="w-[90%] mx-auto items-center justify-between flex">
-                  <input
-                    type="file"
-                    className="p-3"
-                    onChange={handleFileUpload}
-                    accept={acceptedCSVTypes.join(",")}
-                  />
-                  <Button title="Save" onClick={handleFileUpload} />
-                </div>
-              </div>
-
-              <div className="w-[90%] mx-auto h-[90vh] overflow-scroll no-scrollbar flex items-center justify-center">
-                {isLoading && (
-                  <div className="p-10">
-                    <ProgressSpinner />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>,
-          document.body
+    <Dialog
+      TransitionComponent={Transition}
+      fullScreen
+      open={isOpen}
+      onClose={toggleModal}
+    >
+      <AppBar sx={{ position: "relative" }}>
+        <Toolbar>
+          <IconButton
+            edge="start"
+            color="inherit"
+            onClick={toggleModal}
+            aria-label="close"
+          >
+            <CloseIcon />
+          </IconButton>
+          <Typography sx={{ ml: 2, flex: 1 }} variant="h6" component="div">
+            Import Members
+          </Typography>
+          <Button autoFocus color="inherit" onClick={handleFileUpload}>
+            save
+          </Button>
+        </Toolbar>
+      </AppBar>
+      <DialogContent>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Button
+            component="label"
+            role={undefined}
+            variant="contained"
+            tabIndex={-1}
+            startIcon={<CloudUploadIcon />}
+          >
+            Upload Excel File
+            <VisuallyHiddenInput
+              type="file"
+              onChange={(e) => {
+                handlePreview(e);
+              }}
+              multiple
+            />
+          </Button>
+          <Typography>
+            Download the template{" "}
+            <Link className="underline" href="/template_alumni.xlsx">
+              Here
+            </Link>
+          </Typography>
+        </Box>
+        {error && (
+          <Alert
+            sx={{ margin: "15px 0px 15px 0px" }}
+            variant="filled"
+            severity="error"
+          >
+            {error}
+          </Alert>
         )}
-    </div>
+        {success && (
+          <Alert
+            sx={{ margin: "15px 0px 15px 0px" }}
+            variant="filled"
+            severity="success"
+          >
+            {success}
+          </Alert>
+        )}
+        {info && (
+          <Alert
+            variant="filled"
+            sx={{ margin: "15px 0px 15px 0px" }}
+            severity="warning"
+          >
+            {info}
+          </Alert>
+        )}
+        {isLoading && <Loading />}
+        {!isLoading && (
+          <DataGrid
+            checkboxSelection
+            rowSelectionModel={rowSelectionModel}
+            onRowSelectionModelChange={(newSelection: any) =>
+              setRowSelectionModel(newSelection)
+            }
+            rows={rows}
+            columns={columns}
+            editMode="row"
+            getRowClassName={(params) =>
+              params.indexRelativeToCurrentPage % 2 === 0 ? "even" : "odd"
+            }
+            initialState={{
+              pagination: { paginationModel: { pageSize: 20 } },
+            }}
+            sx={(theme) => ({
+              marginTop: "15px",
+              borderColor:
+                theme.palette.mode === "dark"
+                  ? theme.palette.grey[700]
+                  : theme.palette.grey[200],
+              "& .MuiDataGrid-cell": {
+                borderColor:
+                  theme.palette.mode === "dark"
+                    ? theme.palette.grey[700]
+                    : theme.palette.grey[200],
+              },
+            })}
+            pageSizeOptions={[10, 20, 50, 100]}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 

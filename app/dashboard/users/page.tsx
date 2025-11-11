@@ -1,10 +1,8 @@
-import TopTitle from "@/components/Other/TopTitle";
-import UsersPage from "@/components/Dashboard/userspage";
+import UsersPage from "@/components/Dashboard/Members/userspage";
 
 function page() {
   return (
     <div>
-      <TopTitle title="Users" />
       <UsersPage />
     </div>
   );

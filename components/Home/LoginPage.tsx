@@ -1,7 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import Header from "@/components/Home/Header";
-import InputError from "@/components/Other/InputError";
 import { useLoginMutation } from "@/lib/features/authSlice";
 import { useFormik } from "formik";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import React, { useEffect, useState } from "react";
 import * as Yup from "yup";
 import Cookies from "js-cookie";
 import { AUTH_STORED_DATA } from "@/helpers/auth";
+import { Alert, Box, Button, TextField, Typography } from "@mui/material";
 
 const LoginPage = () => {
   const [error, setError] = useState("");
@@ -25,6 +26,12 @@ const LoginPage = () => {
       password: Yup.string().required("Password is required"),
     }),
     onSubmit: async (values) => {
+      if (formik.errors.email || formik.errors.password) {
+        setError(
+          `Please correct these problems: ${formik.errors.email || formik.errors.password}`
+        );
+        return;
+      }
       setIsLoading(true);
       try {
         const result = await login(values).unwrap();
@@ -59,9 +66,8 @@ const LoginPage = () => {
       } catch (err: any) {
         if (err?.status === 401) {
           setError(err?.data?.error);
-        } else {
-          setError("Login Failed! Try again, or contact the administrator!");
         }
+        console.log(err);
       } finally {
         setIsLoading(false);
       }
@@ -69,94 +75,82 @@ const LoginPage = () => {
   });
 
   useEffect(() => {
-    error &&
-      setTimeout(() => {
+    if (error) {
+      const timer = setTimeout(() => {
         setError("");
-      }, 5000);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
   }, [error]);
 
   return (
-    <div className="flex h-screen lg:inline ">
-      <div className="w-full lg:w min-w-[300px] flex flex-col  items-center border border-mainBlue max-w-[40%] mx-auto m-3 p-3 rounded-md shadow-xl">
-        <Header />
-        <div className="w-full h-2 bg-mainBlue shadow-md"></div>
-        <div className="max-w-md w-full space-y-8 mt-20">
-          <form className="mt-4 space-y-6">
-            {error && (
-              <p className="bg-red-500 text-white rounded-md text-center p-2 w-full">
-                {error}
-              </p>
-            )}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Email:
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                value={formik.values.email}
-                onChange={(e) => formik.setFieldValue("email", e.target.value)}
-                required
-                className="mt-1 p-2 w-full border rounded-md"
-                placeholder="Enter your email address"
-              />
-              {formik.errors.email && formik.touched.email && (
-                <InputError error={formik.errors.email} />
-              )}
-            </div>
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Password:
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                value={formik.values.password}
-                onChange={(e) =>
-                  formik.setFieldValue("password", e.target.value)
-                }
-                required
-                className="mt-1 p-2 w-full border rounded-md"
-                placeholder="Enter your password"
-              />
-              {formik.errors.password && formik.touched.password && (
-                <InputError error={formik.errors.password} />
-              )}
-              <div className="flex justify-between items-center mt-1">
-                <div></div>
-                <Link
-                  href="/forgotpassword"
-                  className="text-yellow-500 text-xs underline"
-                >
-                  Forgot Password?
-                </Link>
-              </div>
-            </div>
+    <Box className="w-full h-screen flex flex-col md:flex-row">
+      <Box
+        className="w-full md:w-1/2 h-1/2 md:h-full bg-cover bg-center"
+        style={{ backgroundImage: `url('/yali_alumni.jpg')` }}
+      ></Box>
+      <Box className="w-full md:w-1/2 h-full p-8 md:p-20 flex items-center justify-center">
+        <form className="w-full max-w-md shadow-md md:p-5 p-2">
+          <Header />
 
-            <div>
-              <button
-                type="submit"
-                className="w-full bg-mainBlue text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:bg-blue-600"
-                onClick={(e) => {
-                  e.preventDefault();
-                  formik.handleSubmit();
-                }}
+          {error && (
+            <Alert variant="filled" severity="error" className="my-2">
+              {error}
+            </Alert>
+          )}
+          <Box sx={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+            <TextField
+              type="email"
+              label="Email:"
+              value={formik.values.email}
+              onChange={(e) => formik.setFieldValue("email", e.target.value)}
+              required
+              variant="filled"
+              placeholder="Enter your email address"
+              error={formik.errors.email ? true : false}
+              helperText={formik.errors.email}
+            />
+
+            <TextField
+              type="password"
+              label="Password:"
+              variant="filled"
+              value={formik.values.password}
+              onChange={(e) => formik.setFieldValue("password", e.target.value)}
+              required
+              placeholder="Enter your password"
+              error={formik.errors.password ? true : false}
+              helperText={formik.errors.password}
+            />
+          </Box>
+
+          <Box className="flex justify-between items-center mt-1">
+            <div></div>
+            <Link href="/forgotpassword">
+              <Typography
+                color="warning"
+                variant="subtitle1"
+                className="underline"
               >
-                {isLoading ? "Loading.." : "Login"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+                Forgot Password?
+              </Typography>
+            </Link>
+          </Box>
+          <Button
+            variant="contained"
+            color="primary"
+            type="submit"
+            className="w-full mt-2"
+            onClick={(e) => {
+              e.preventDefault();
+              formik.handleSubmit();
+            }}
+          >
+            {isLoading ? "Loading.." : "Login"}
+          </Button>
+        </form>
+      </Box>
+    </Box>
   );
 };
 

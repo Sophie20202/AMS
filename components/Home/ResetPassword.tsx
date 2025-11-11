@@ -1,26 +1,55 @@
 "use client";
 
 import Header from "@/components/Home/Header";
-import InputError from "@/components/Other/InputError";
+import { useResetPasswordMutation } from "@/lib/features/authSlice";
 import {
-  useLoginMutation,
-  useResetPasswordMutation,
-} from "@/lib/features/authSlice";
+  Alert,
+  Box,
+  Button,
+  FilledInput,
+  FormControl,
+  FormHelperText,
+  IconButton,
+  InputAdornment,
+  InputLabel,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { useFormik } from "formik";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import * as Yup from "yup";
-import Cookies from "js-cookie";
-import { AUTH_STORED_DATA } from "@/helpers/auth";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 const ResetPassword = () => {
-  const { token } = useParams();
+  const { tokendata } = useParams<{ tokendata: string }>();
+
+  const decodedData = decodeURIComponent(tokendata);
+
+  const [token, email] = decodedData.split("+email+");
+
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState("");
+  const [showPassword, setShowPassword] = React.useState(false);
 
   const [resetPassword] = useResetPasswordMutation();
+
+  const handleClickShowPassword = () => setShowPassword((show) => !show);
+
+  const handleMouseDownPassword = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+  };
+
+  const handleMouseUpPassword = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+  };
 
   const formik = useFormik({
     initialValues: {
@@ -28,12 +57,26 @@ const ResetPassword = () => {
       cPassword: "",
     },
     validationSchema: Yup.object({
-      password: Yup.string().min(8).required("Password is required"),
+      password: Yup.string()
+        .min(8, "Password must be at least 8 characters")
+        .matches(/[a-zA-Z]/, "Password must contain at least one letter")
+        .matches(/\d/, "Password must contain at least one number")
+        .matches(
+          /[!@#$%^&*(),.?":{}|<>]/,
+          "Password must contain at least one special character"
+        )
+        .required("Password is required"),
       cPassword: Yup.string()
         .required("Kindly repeat the new password!")
         .oneOf([Yup.ref("password")], "Passwords must match"),
     }),
     onSubmit: async (values) => {
+      if (formik.errors.password || formik.errors.cPassword) {
+        setError(
+          `Please correct these problems: ${formik.errors.password || formik.errors.cPassword}`
+        );
+        return;
+      }
       setIsLoading(true);
       try {
         const result = await resetPassword({
@@ -41,10 +84,8 @@ const ResetPassword = () => {
           newPassword: values.password,
         }).unwrap();
 
-        // if (result?.status == 201) {
         formik.resetForm();
         setSuccess(result.message);
-        // }
       } catch (err: any) {
         console.error("Failed to reset:", err);
         if (err?.status === 401) {
@@ -59,96 +100,119 @@ const ResetPassword = () => {
   });
 
   useEffect(() => {
-    error &&
-      setTimeout(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess("");
         setError("");
-      }, 5000);
-  }, [error]);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, success]);
 
   return (
-    <div className="flex h-screen lg:inline ">
-      <div className="w-full lg:w min-w-[300px] flex flex-col  items-center">
-        <Header />
-        <div className="max-w-md w-full space-y-8 mt-20">
-          <h1 className="mb-4 text-2xl font-bold">Change your Password</h1>
-          {success && (
-            <div className="flex flex-col gap-3 items-center jsutify-center items-center">
-              {" "}
-              <p className="bg-green-500 text-white rounded-md text-center p-2 w-full">
-                {success}
-              </p>
-              <Link href="/" className="underline">
+    <Box className="w-full h-screen flex flex-col md:flex-row">
+      <Box
+        className="w-full md:w-1/2 h-1/2 md:h-full bg-cover bg-center"
+        style={{ backgroundImage: `url('/yali_alumni.jpg')` }}
+      ></Box>
+      <Box className="w-full md:w-1/2 h-full p-8 md:p-20 flex items-center justify-center">
+        {success && (
+          <Box className="flex flex-col gap-3 justify-center items-center">
+            <Alert severity="success" variant="filled" className="my-2">
+              {success}
+            </Alert>
+            <Link href="/" className="underline">
+              <Typography variant="subtitle1" color="primary">
                 Go to Login
-              </Link>
-            </div>
-          )}
-          {!success && (
-            <form className="mt-4 space-y-6">
-              {error && (
-                <p className="bg-red-500 text-white rounded-md text-center p-2 w-full">
-                  {error}
-                </p>
-              )}
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  New Password:
-                </label>
-                <input
-                  type="password"
+              </Typography>
+            </Link>
+          </Box>
+        )}
+        {!success && (
+          <form className="mt-4 space-y-6">
+            <Header />
+            <Typography
+              fontWeight={600}
+              variant="h6"
+              className="text-center text-mainBlue m-0"
+            >
+              Change your Password
+            </Typography>
+            {error && (
+              <Alert severity="error" variant="filled">
+                {error}
+              </Alert>
+            )}
+            <Box sx={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+              <TextField
+                label="Email/Username"
+                type="email"
+                value={email}
+                defaultValue={email}
+                disabled
+                variant="filled"
+              />
+              <FormControl>
+                <InputLabel>New Password:</InputLabel>
+                <FilledInput
+                  type={showPassword ? "text" : "password"}
+                  error={formik.errors.password ? true : false}
+                  endAdornment={
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label={
+                          showPassword
+                            ? "hide the password"
+                            : "display the password"
+                        }
+                        onClick={handleClickShowPassword}
+                        onMouseDown={handleMouseDownPassword}
+                        onMouseUp={handleMouseUpPassword}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  }
                   value={formik.values.password}
                   onChange={(e) =>
                     formik.setFieldValue("password", e.target.value)
                   }
                   required
-                  className="mt-1 p-2 w-full border rounded-md"
                   placeholder="Enter the new password"
                 />
-                {formik.errors.password && formik.touched.password && (
-                  <InputError error={formik.errors.password} />
-                )}
-              </div>
-              <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Repeat Password:
-                </label>
-                <input
-                  type="password"
-                  value={formik.values.cPassword}
-                  onChange={(e) =>
-                    formik.setFieldValue("cPassword", e.target.value)
-                  }
-                  required
-                  className="mt-1 p-2 w-full border rounded-md"
-                  placeholder="Repeat the new password"
-                />
-                {formik.errors.cPassword && formik.touched.cPassword && (
-                  <InputError error={formik.errors.cPassword} />
-                )}
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  className="w-full bg-mainBlue text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:bg-blue-600"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    formik.handleSubmit();
-                  }}
-                >
-                  {isLoading ? "Resetting..." : "Reset Password"}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
+                <FormHelperText>{formik.errors.password}</FormHelperText>
+              </FormControl>
+              <TextField
+                label="Repeat Password:"
+                type="password"
+                value={formik.values.cPassword}
+                onChange={(e) =>
+                  formik.setFieldValue("cPassword", e.target.value)
+                }
+                required
+                variant="filled"
+                placeholder="Repeat the new password"
+                error={formik.errors.cPassword ? true : false}
+                helperText={formik.errors.cPassword}
+              />
+            </Box>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              className="w-full mt-2"
+              onClick={(e) => {
+                e.preventDefault();
+                formik.handleSubmit();
+              }}
+            >
+              {isLoading ? "Resetting..." : "Reset Password"}
+            </Button>
+          </form>
+        )}
+      </Box>
+    </Box>
   );
 };
 

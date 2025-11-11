@@ -4,6 +4,23 @@ upstream web {
   server web:3000;
 }
 
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  '' close;
+}
+
+
+server {
+  listen  80 default_server;
+  listen  [::]:80 default_server;
+  server_name ${NGINX_SERVER_NAME};
+
+  location / {
+      return 301 https://$host$request_uri;
+  }
+}
+
+
 server {
   listen ${NGINX_PORT};
 
@@ -21,6 +38,8 @@ server {
   proxy_set_header Connection 'upgrade';
   proxy_set_header Host $host;
   proxy_cache_bypass $http_upgrade;
+
+  client_max_body_size 50M;
 
   location /_next/static {
     proxy_cache STATIC;
@@ -45,7 +64,12 @@ server {
   }
 
   location /api {
-    proxy_pass http://api:4000/api;
+    proxy_pass ${NEXT_PUBLIC_API_URL};
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_redirect off;
+
   }
 
 }

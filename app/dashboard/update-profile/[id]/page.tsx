@@ -1,14 +1,13 @@
-"use client";
-
 import TopTitle from "@/components/Other/TopTitle";
-import UpdateProfile from "@/components/Dashboard/UpdateProfilepage";
+import UpdateProfile from "@/components/Dashboard/Members/UpdateMember/UpdateProfilepage";
 import { OnlyAdmin } from "@/components/Other/AccessDashboard";
-import React from "react";
 
-function page() {
+async function page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  console.log(id);
   return (
     <div>
-      <TopTitle title=" UpdateUser" />
+      <TopTitle title=" Update Member Details" />
       <OnlyAdmin>
         <UpdateProfile />
       </OnlyAdmin>

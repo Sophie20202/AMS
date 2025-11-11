@@ -1,9 +1,7 @@
 "use client";
 
-import { Avatar } from "primereact/avatar";
 import React, { useEffect, useRef, useState } from "react";
-import { BiUser } from "react-icons/bi";
-import ChatInput from "../Other/ChatInput";
+import ChatInput from "../../Other/ChatInput";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import {
@@ -18,14 +16,15 @@ import { User } from "@/types/user";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useParams } from "next/navigation";
+import { Avatar, Box, Typography } from "@mui/material";
 
 function ChatPage() {
-  const user = getUser();
+  const user: User = getUser();
   dayjs.extend(relativeTime);
   const [messages, setMessages] = useState<Message[]>([]);
   const { username } = useParams();
 
-  const { data: chatsData } = useChatsQuery("", {
+  const { data: chatsData } = useChatsQuery(user?.id, {
     skip: !!username,
     pollingInterval: 500,
   });
@@ -53,8 +52,6 @@ function ChatPage() {
     }
   }, [privateChatsData, username]);
 
-  // const messages = username ? privateChatsData?.data : chatsData?.data;
-
   const messagesEndRef: any = useRef(null);
 
   const scrollToBottom = () => {
@@ -74,10 +71,11 @@ function ChatPage() {
     validationSchema: Yup.object({
       message: Yup.string().required("Message is required"),
       sender: Yup.string(),
+      receiverId: Yup.string(),
     }),
-    onSubmit: async (values) => {
+    onSubmit: async (values: any) => {
       try {
-        const res = await addMessage({ data: values }).unwrap();
+        await addMessage({ data: values }).unwrap();
         formik.resetForm();
       } catch (error) {
         console.log(error);
@@ -86,31 +84,43 @@ function ChatPage() {
   });
 
   return (
-    <div className="chat">
-      <div
-        className="bg-gray-100 left-0 right-0 top-0 p-4 rounded-t-xl flex items-center gap-3"
+    <Box className="chat">
+      <Box
+        className="left-0 right-0 top-0 p-4 rounded-t-xl flex items-center gap-3 dark:text-black"
+        sx={{ backgroundColor: "white" }}
         style={{ zIndex: 1 }}
       >
-        <Avatar icon={<BiUser />} />
-        <div className="flex flex-col">
-          <h2 className="font-bold text-mainBlue">
+        <Avatar
+          alt={
+            username
+              ? UsersQuery?.data.find((user: User) => user?.id == username)
+                  ?.firstName
+              : "Community Chat"
+          }
+          src={
+            username
+              ? UsersQuery?.data.find((user: User) => user?.id == username)
+                  ?.profileImage?.link
+              : ""
+          }
+        />
+        <Box className="flex flex-col">
+          <Typography variant="h6" fontWeight={600}>
             {username
               ? UsersQuery?.data.find((user: User) => user?.id == username)
                   ?.firstName
               : "Community Chat"}
-          </h2>
-          <p className="text-xs">
+          </Typography>
+          <Typography className="text-xs">
             {!username &&
-              UsersQuery?.data
-                .slice(0, 2)
-                .map((user: User) => user?.firstName + ", ")}
+              UsersQuery?.data.slice(0, 1).map((user: User) => user?.firstName)}
             {!username &&
               UsersQuery?.data.length > 2 &&
-              " and " + UsersQuery?.data.length + " others"}
-          </p>
-        </div>
-      </div>
-      <div
+              " and " + (UsersQuery?.data.length - 1) + " others"}
+          </Typography>
+        </Box>
+      </Box>
+      <Box
         className={`h-[70vh] p-2 rounded-xl w-full content-end overflow-scroll my-scrollable-div no-scrollbar`}
       >
         {messages &&
@@ -121,8 +131,12 @@ function ChatPage() {
                 new Date(b.createdAt).getTime()
             )
             .map((message) => {
+              const otherPerson =
+                user?.id !== message?.sender?.id
+                  ? message?.sender
+                  : message?.receiver;
               return (
-                <div
+                <Box
                   key={message?.id}
                   className={`flex flex-1 gap-1 w-full ${
                     message?.senderId === user?.id
@@ -131,42 +145,51 @@ function ChatPage() {
                   }`}
                 >
                   <Avatar
-                    icon={<BiUser />}
-                    image={message?.senderId === user?.id ? user?.picture : ""}
+                    alt={otherPerson?.firstName}
+                    src={username && otherPerson?.profileImage?.link}
                   />
-                  <div
+                  <Box
                     className={`message ${
                       message?.senderId === user?.id ? "sent" : "received"
                     }`}
                   >
-                    <p className="text-xs font-bold">
+                    <Typography
+                      variant="caption"
+                      color="primary"
+                      sx={{ fontWeight: 700 }}
+                    >
                       {message?.sender?.firstName +
                         " " +
                         message?.sender?.middleName || ""}
-                    </p>
-                    <p>{message?.message}</p>
-                    <p className="text-xs text-gray-600">
+                    </Typography>
+                    <Typography variant="subtitle1">
+                      {message?.message}
+                    </Typography>
+                    <Typography variant="caption" color="primary">
                       {dayjs(message?.createdAt).fromNow()}
-                    </p>
-                  </div>
-                </div>
+                    </Typography>
+                  </Box>
+                </Box>
               );
             })}
         {messages && messages.length === 0 && (
-          <div className="flex h-full w-full justify-center items-center">
+          <Typography variant="body2" className="items-center">
             No messages yet, send a message to start the conversation!
-          </div>
+          </Typography>
         )}
         <div ref={messagesEndRef} />
-      </div>
+      </Box>
       <form className="flex gap-2 items-center">
         <ChatInput
           onSubmit={() => formik.handleSubmit()}
           value={formik.values.message}
-          setValue={(e: any) => formik.setFieldValue("message", e.target.value)}
+          setValue={(e: any) => {
+            formik.setFieldValue("message", e.target.value);
+            formik.setFieldValue("receiverId", username ? username : "");
+          }}
         />
       </form>
-    </div>
+    </Box>
   );
 }
 

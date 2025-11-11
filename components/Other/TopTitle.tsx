@@ -1,36 +1,50 @@
 "use client";
 
-import { getUser } from "@/helpers/auth";
-import { User } from "@/types/user";
-import Image from "next/image";
-import React, { useEffect, useState } from "react";
-import { GoDotFill } from "react-icons/go";
+import React from "react";
+import { Typography } from "@mui/material";
+
+export function SectionTitle({ title }: { title: string }) {
+  return (
+    <Typography
+      variant="h6"
+      sx={{
+        padding: "10px",
+        textAlign: "center",
+        backgroundColor: "white",
+        fontWeight: 900,
+      }}
+      color="primary"
+      className="border-b border-gray-100"
+    >
+      {title}
+    </Typography>
+  );
+}
+
+export function OtherTitle({ title }: { title: string }) {
+  return (
+    <div className="flex w-full items-center text-center">
+      <Typography
+        variant="h5"
+        fontWeight={800}
+        className="text-center py-3 px-1"
+      >
+        {title}
+      </Typography>
+    </div>
+  );
+}
 
 function TopTitle({ title }: { title: string }) {
-  const user: User = getUser();
   return (
-    <div className="flex w-full justify-between items-center mb-10 border-b border-gray-200 p-2 cursor-pointer">
-      <h1 className="text-xl text-mainBlue font-bold">{title}</h1>
-      <div className="flex gap-3 items-center">
-        <div className="flex flex-col items-start">
-          <div className="flex gap-0 items-center">
-            <h2 className="text-md font-bold">{user?.firstName}</h2>
-            <GoDotFill className="text-mainBlue" />
-          </div>
-          <p className="text-xs text-mainBlue">{user?.role?.name}</p>
-        </div>
-        <Image
-          src={
-            user?.profileImage?.link
-              ? user?.profileImage?.link
-              : "/placeholder.svg"
-          }
-          width={50}
-          height={50}
-          className="rounded-full object-cover"
-          alt="Profile"
-        />
-      </div>
+    <div className="flex w-full items-center text-center">
+      <Typography
+        variant="h4"
+        fontWeight={900}
+        className="text-center py-3 px-1"
+      >
+        {title}
+      </Typography>
     </div>
   );
 }
